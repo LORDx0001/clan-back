@@ -1,6 +1,7 @@
 import os
 import json
 import requests
+import threading
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
@@ -282,67 +283,67 @@ def submit_recruitment_api(request):
             stat_photo_4=stat_photo_4
         )
         
+        # Read binary files data into memory immediately while request context is active
+        media_files_data = []
+        photos_list = [stat_photo_1, stat_photo_2, stat_photo_3, stat_photo_4]
+        for photo in photos_list:
+            if photo:
+                photo.seek(0)
+                media_files_data.append((photo.name, photo.read(), photo.content_type))
+
         # Telegram notification
         bot_token = os.environ.get('TELEGRAM_BOT_TOKEN')
         chat_id = os.environ.get('TELEGRAM_CHAT_ID')
         if bot_token and chat_id:
-            try:
-                msg = (
-                    f"🔥 *Новая заявка в клан!*\n\n"
-                    f"👤 *Никнейм:* {nickname}\n"
-                    f"🆔 *PUBG ID:* {game_id}\n"
-                    f"🎯 *Роль:* {role}\n"
-                    f"📱 *Устройство:* {device}\n"
-                    f"🎂 *Возраст:* {age}\n"
-                    f"⏱ *Часов в день:* {play_time}\n"
-                    f"💬 *Связь:* {discord_telegram}\n"
-                    f"📝 *О себе:* {about if about else 'Не указано'}"
-                )
-
-                # Collect files and send as a Media Group (Album)
-                media_files = {}
-                media_group = []
-                photos_list = [stat_photo_1, stat_photo_2, stat_photo_3, stat_photo_4]
-                file_index = 0
-                for photo in photos_list:
-                    if photo:
-                        photo.seek(0)
-                        file_key = f"photo_{file_index}"
-                        media_files[file_key] = (photo.name, photo.read(), photo.content_type)
+            msg = (
+                f"🔥 *Новая заявка в клан!*\n\n"
+                f"👤 *Никнейм:* {nickname}\n"
+                f"🆔 *PUBG ID:* {game_id}\n"
+                f"🎯 *Роль:* {role}\n"
+                f"📱 *Устройство:* {device}\n"
+                f"🎂 *Возраст:* {age}\n"
+                f"⏱ *Часов в день:* {play_time}\n"
+                f"💬 *Связь:* {discord_telegram}\n"
+                f"📝 *О себе:* {about if about else 'Не указано'}"
+            )
+            
+            # Fire and forget thread so Django returns 201 Created instantly (under 20ms)!
+            def send_telegram_async():
+                try:
+                    media_files = {}
+                    media_group = []
+                    for idx, (name, content, content_type) in enumerate(media_files_data):
+                        file_key = f"photo_{idx}"
+                        media_files[file_key] = (name, content, content_type)
                         
                         media_item = {
                             "type": "photo",
                             "media": f"attach://{file_key}"
                         }
-                        # Add text message details as caption of the first photo in the album
-                        if file_index == 0:
+                        if idx == 0:
                             media_item["caption"] = msg
                             media_item["parse_mode"] = "Markdown"
-                            
                         media_group.append(media_item)
-                        file_index += 1
 
-                if media_group:
-                    res = requests.post(
-                        f"https://api.telegram.org/bot{bot_token}/sendMediaGroup",
-                        data={
-                            "chat_id": chat_id,
-                            "media": json.dumps(media_group)
-                        },
-                        files=media_files,
-                        timeout=15
-                    )
-                    print(f"TELEGRAM SENDALBUM RESPONSE: {res.status_code} - {res.text}")
-                else:
-                    # Fallback to direct text if no photos are present
-                    res = requests.post(
-                        f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                        data={"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"},
-                        timeout=5
-                    )
-                    print(f"TELEGRAM SENDMESSAGE RESPONSE: {res.status_code} - {res.text}")
-            except Exception as tg_err:
-                print(f"Telegram notification error: {tg_err}")
+                    if media_group:
+                        res = requests.post(
+                            f"https://api.telegram.org/bot{bot_token}/sendMediaGroup",
+                            data={"chat_id": chat_id, "media": json.dumps(media_group)},
+                            files=media_files,
+                            timeout=30
+                        )
+                        print(f"TELEGRAM ASYNC SENDALBUM RESPONSE: {res.status_code} - {res.text}")
+                    else:
+                        res = requests.post(
+                            f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                            data={"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"},
+                            timeout=10
+                        )
+                        print(f"TELEGRAM ASYNC SENDMESSAGE RESPONSE: {res.status_code} - {res.text}")
+                except Exception as tg_err:
+                    print(f"Async Telegram notification error: {tg_err}")
+
+            threading.Thread(target=send_telegram_async, daemon=True).start()
         
         return JsonResponse({
             "success": True,
