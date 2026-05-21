@@ -1,5 +1,12 @@
 from django.db import models
 from django.utils import timezone
+from django.core.exceptions import ValidationError
+
+def validate_file_size(value):
+    limit = 120 * 1024 * 1024  # 120MB
+    if value.size > limit:
+        raise ValidationError(f'Размер файла не должен превышать 120 МБ. Ваш файл весит {value.size / (1024 * 1024):.2f} МБ.')
+
 
 class ClanConfig(models.Model):
     """
@@ -102,7 +109,7 @@ class HeroBackgroundSlide(models.Model):
         ('video', 'Видео (без звука)'),
     ]
     slide_type = models.CharField(max_length=20, choices=SLIDE_TYPE_CHOICES, default='image', verbose_name="Тип слайда")
-    file = models.FileField(upload_to="hero_carousel/", verbose_name="Файл слайда (mp4 / jpg / png / webp)")
+    file = models.FileField(upload_to="hero_carousel/", validators=[validate_file_size], verbose_name="Файл слайда (mp4 / jpg / png / webp)")
     order = models.PositiveIntegerField(default=0, verbose_name="Порядок сортировки")
 
     class Meta:
@@ -130,8 +137,8 @@ class Player(models.Model):
     kd = models.FloatField(blank=True, null=True, verbose_name="K/D Ratio (необязательно)")
     signature_weapon = models.CharField(max_length=150, default="", verbose_name="Любимое оружие")
     
-    avatar_file = models.ImageField(upload_to="avatars/", blank=True, null=True, verbose_name="Аватарка игрока (Файл фото)")
-    profile_file = models.FileField(upload_to="player_profiles/", blank=True, null=True, verbose_name="Полноэкранное медиа профиля (Файл фото или видео)")
+    avatar_file = models.ImageField(upload_to="avatars/", validators=[validate_file_size], blank=True, null=True, verbose_name="Аватарка игрока (Файл фото)")
+    profile_file = models.FileField(upload_to="player_profiles/", validators=[validate_file_size], blank=True, null=True, verbose_name="Полноэкранное медиа профиля (Файл фото или видео)")
     
     achievements = models.TextField(
         verbose_name="Достижения", 
@@ -162,7 +169,7 @@ class Player(models.Model):
 
 class PlayerMedia(models.Model):
     player = models.ForeignKey(Player, on_delete=models.CASCADE, related_name="media_gallery", verbose_name="Игрок")
-    file = models.FileField(upload_to="player_media/", verbose_name="Файл медиа (Фото или Видео)")
+    file = models.FileField(upload_to="player_media/", validators=[validate_file_size], verbose_name="Файл медиа (Фото или Видео)")
 
     class Meta:
         verbose_name = "Медиафайл игрока"
@@ -210,8 +217,8 @@ class GalleryItem(models.Model):
     title = models.CharField(max_length=255, verbose_name="Название")
     category = models.CharField(max_length=100, default="", verbose_name="Категория")
     
-    file_upload = models.FileField(upload_to="gallery/", blank=True, null=True, verbose_name="Загрузить медиафайл напрямую")
-    thumbnail_upload = models.ImageField(upload_to="gallery/thumbs/", blank=True, null=True, verbose_name="Загрузить файл обложки")
+    file_upload = models.FileField(upload_to="gallery/", validators=[validate_file_size], blank=True, null=True, verbose_name="Загрузить медиафайл напрямую")
+    thumbnail_upload = models.ImageField(upload_to="gallery/thumbs/", validators=[validate_file_size], blank=True, null=True, verbose_name="Загрузить файл обложки")
     description = models.TextField(blank=True, null=True, verbose_name="Описание хайлайта (необязательное)")
     tagged_players = models.ManyToManyField('Player', blank=True, related_name="gallery_items", verbose_name="Отмеченные участники клана")
     views = models.PositiveIntegerField(default=0, verbose_name="Просмотры")
@@ -306,10 +313,10 @@ class RecruitmentSubmission(models.Model):
         ],
         verbose_name="Автоматический статус отбора"
     )
-    stat_photo_1 = models.ImageField(upload_to="recruits_stats/", blank=True, null=True, verbose_name="Фото статистики 1")
-    stat_photo_2 = models.ImageField(upload_to="recruits_stats/", blank=True, null=True, verbose_name="Фото статистики 2")
-    stat_photo_3 = models.ImageField(upload_to="recruits_stats/", blank=True, null=True, verbose_name="Фото статистики 3")
-    stat_photo_4 = models.ImageField(upload_to="recruits_stats/", blank=True, null=True, verbose_name="Фото статистики 4")
+    stat_photo_1 = models.ImageField(upload_to="recruits_stats/", validators=[validate_file_size], blank=True, null=True, verbose_name="Фото статистики 1")
+    stat_photo_2 = models.ImageField(upload_to="recruits_stats/", validators=[validate_file_size], blank=True, null=True, verbose_name="Фото статистики 2")
+    stat_photo_3 = models.ImageField(upload_to="recruits_stats/", validators=[validate_file_size], blank=True, null=True, verbose_name="Фото статистики 3")
+    stat_photo_4 = models.ImageField(upload_to="recruits_stats/", validators=[validate_file_size], blank=True, null=True, verbose_name="Фото статистики 4")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Время отправки")
 
     class Meta:
