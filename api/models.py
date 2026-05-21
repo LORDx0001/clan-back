@@ -116,6 +116,7 @@ class HeroBackgroundSlide(models.Model):
 
 class Player(models.Model):
     nickname = models.CharField(max_length=100, verbose_name="Никнейм игрока")
+    uid = models.CharField(max_length=100, blank=True, default="", verbose_name="Игровой UID (PUBG Mobile ID) (необязательно)")
     role = models.ForeignKey(PlayerRole, on_delete=models.CASCADE, verbose_name="Роль игрока", related_name="players", null=True, blank=True)
     device = models.CharField(max_length=150, blank=True, default="", verbose_name="Игровое устройство (необязательно)")
     level = models.PositiveIntegerField(default=1, verbose_name="Уровень аккаунта")

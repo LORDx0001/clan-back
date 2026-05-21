@@ -99,6 +99,7 @@ def players_list_api(request):
         player_dict = {
             "id": str(p.id),
             "nickname": p.nickname,
+            "uid": p.uid,
             "role": p.role.name if p.role else "",
             "device": p.device,
             "level": p.level,

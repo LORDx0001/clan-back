@@ -70,7 +70,7 @@ class PlayerAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Игровой профиль', {
-            'fields': ('nickname', 'role', 'level', 'kd', 'signature_weapon', 'device')
+            'fields': ('nickname', 'uid', 'role', 'level', 'kd', 'signature_weapon', 'device')
         }),
         ('Аватар и Медиа профиля', {
             'fields': ('avatar_file', 'profile_file')
