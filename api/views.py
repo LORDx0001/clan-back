@@ -101,6 +101,8 @@ def players_list_api(request):
             "nickname": p.nickname,
             "uid": p.uid,
             "role": p.role.name if p.role else "",
+            "clanRole": p.clan_role,
+            "clanRoleDisplay": p.get_clan_role_display(),
             "device": p.device,
             "level": p.level,
             "signatureWeapon": p.signature_weapon,

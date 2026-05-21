@@ -62,15 +62,15 @@ class PlayerMediaInline(admin.TabularInline):
 
 @admin.register(Player)
 class PlayerAdmin(admin.ModelAdmin):
-    list_display = ('nickname_preview', 'role', 'level', 'signature_weapon', 'region', 'joined_date')
-    list_filter = ('role', 'region')
+    list_display = ('nickname_preview', 'clan_role', 'role', 'level', 'signature_weapon', 'region', 'joined_date')
+    list_filter = ('clan_role', 'role', 'region')
     search_fields = ('nickname', 'device', 'signature_weapon', 'achievements')
     list_editable = ('level',)
     inlines = [PlayerMediaInline]
     
     fieldsets = (
         ('Игровой профиль', {
-            'fields': ('nickname', 'uid', 'role', 'level', 'kd', 'signature_weapon', 'device')
+            'fields': ('nickname', 'uid', 'clan_role', 'role', 'level', 'kd', 'signature_weapon', 'device')
         }),
         ('Аватар и Медиа профиля', {
             'fields': ('avatar_file', 'profile_file')

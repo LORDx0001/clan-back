@@ -115,9 +115,16 @@ class HeroBackgroundSlide(models.Model):
 
 
 class Player(models.Model):
+    CLAN_ROLE_CHOICES = [
+        ('leader', 'Лидер'),
+        ('deputy', 'Заместитель (Зам)'),
+        ('elite', 'Элита'),
+        ('member', 'Член клана'),
+    ]
     nickname = models.CharField(max_length=100, verbose_name="Никнейм игрока")
     uid = models.CharField(max_length=100, blank=True, default="", verbose_name="Игровой UID (PUBG Mobile ID) (необязательно)")
     role = models.ForeignKey(PlayerRole, on_delete=models.CASCADE, verbose_name="Роль игрока", related_name="players", null=True, blank=True)
+    clan_role = models.CharField(max_length=50, choices=CLAN_ROLE_CHOICES, default='member', verbose_name="Роль/Статус в клане")
     device = models.CharField(max_length=150, blank=True, default="", verbose_name="Игровое устройство (необязательно)")
     level = models.PositiveIntegerField(default=1, verbose_name="Уровень аккаунта")
     kd = models.FloatField(blank=True, null=True, verbose_name="K/D Ratio (необязательно)")
