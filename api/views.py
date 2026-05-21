@@ -355,3 +355,13 @@ def submit_recruitment_api(request):
         
     except (ValueError, TypeError, json.JSONDecodeError) as e:
         return JsonResponse({"error": f"Некорректный формат данных: {str(e)}"}, status=400)
+
+
+@require_GET
+def roles_list_api(request):
+    """
+    Returns all player roles from the database.
+    """
+    roles = PlayerRole.objects.all()
+    data = [{"id": r.id, "name": r.name} for r in roles]
+    return JsonResponse(data, safe=False, json_dumps_params={'ensure_ascii': False})
