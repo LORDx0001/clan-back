@@ -1,0 +1,25 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Django database and migrations history if needed, but db.sqlite3 should be ignored
+db.sqlite3
+db.sqlite3-journal
+
+# Media & static distribution directories
+media/
+staticfiles/
+
+# Environments and Virtualenvs
+.env
+.venv
+venv/
+ENV/
+env/
+
+# OS and IDE configuration files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
