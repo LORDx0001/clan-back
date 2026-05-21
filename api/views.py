@@ -70,7 +70,8 @@ def clan_config_api(request):
             }
         ],
         "rulesTermsDesc": config.rules_terms_desc,
-        "recruitmentImageUrl": get_absolute_media_url(request, config.recruitment_image.url if config.recruitment_image else "")
+        "recruitmentImageUrl": get_absolute_media_url(request, config.recruitment_image.url if config.recruitment_image else ""),
+        "rulesImageUrl": get_absolute_media_url(request, config.rules_image.url if config.rules_image else "")
     }
     return JsonResponse(data, safe=False, json_dumps_params={'ensure_ascii': False})
 
@@ -240,6 +241,15 @@ def submit_recruitment_api(request):
             
         if not nickname or not game_id or not discord_telegram:
             return JsonResponse({"error": "Никнейм, PUBG ID и Контакт обязательны для заполнения!"}, status=400)
+
+        # Enforce maximum 2 submissions per day per player game_id
+        today = timezone.localtime(timezone.now()).date()
+        existing_count = RecruitmentSubmission.objects.filter(
+            game_id=game_id,
+            created_at__date=today
+        ).count()
+        if existing_count >= 2:
+            return JsonResponse({"error": "Превышен суточный лимит! Подавать заявку по данному PUBG ID можно не более 2 раз в день."}, status=400)
             
         # Automatic Gaming Profile Scoring Algorithm
         if play_time >= 6 and age >= 16:
@@ -277,7 +287,6 @@ def submit_recruitment_api(request):
         chat_id = os.environ.get('TELEGRAM_CHAT_ID')
         if bot_token and chat_id:
             try:
-                # 1. Send text message
                 msg = (
                     f"🔥 *Новая заявка в клан!*\n\n"
                     f"👤 *Никнейм:* {nickname}\n"
@@ -287,16 +296,10 @@ def submit_recruitment_api(request):
                     f"🎂 *Возраст:* {age}\n"
                     f"⏱ *Часов в день:* {play_time}\n"
                     f"💬 *Связь:* {discord_telegram}\n"
-                    f"📊 *Статус скоринга:* {assessment_grade}\n"
-                    f"📝 *О себе:* {about}"
-                )
-                requests.post(
-                    f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                    data={"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"},
-                    timeout=5
+                    f"📝 *О себе:* {about if about else 'Не указано'}"
                 )
 
-                # 2. Collect files and send as a Media Group (Album)
+                # Collect files and send as a Media Group (Album)
                 media_files = {}
                 media_group = []
                 photos_list = [stat_photo_1, stat_photo_2, stat_photo_3, stat_photo_4]
@@ -306,22 +309,38 @@ def submit_recruitment_api(request):
                         photo.seek(0)
                         file_key = f"photo_{file_index}"
                         media_files[file_key] = (photo.name, photo.read(), photo.content_type)
-                        media_group.append({
+                        
+                        media_item = {
                             "type": "photo",
                             "media": f"attach://{file_key}"
-                        })
+                        }
+                        # Add text message details as caption of the first photo in the album
+                        if file_index == 0:
+                            media_item["caption"] = msg
+                            media_item["parse_mode"] = "Markdown"
+                            
+                        media_group.append(media_item)
                         file_index += 1
 
                 if media_group:
-                    requests.post(
+                    res = requests.post(
                         f"https://api.telegram.org/bot{bot_token}/sendMediaGroup",
                         data={
                             "chat_id": chat_id,
                             "media": json.dumps(media_group)
                         },
                         files=media_files,
-                        timeout=10
+                        timeout=15
                     )
+                    print(f"TELEGRAM SENDALBUM RESPONSE: {res.status_code} - {res.text}")
+                else:
+                    # Fallback to direct text if no photos are present
+                    res = requests.post(
+                        f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                        data={"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"},
+                        timeout=5
+                    )
+                    print(f"TELEGRAM SENDMESSAGE RESPONSE: {res.status_code} - {res.text}")
             except Exception as tg_err:
                 print(f"Telegram notification error: {tg_err}")
         

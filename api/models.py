@@ -65,6 +65,12 @@ class ClanConfig(models.Model):
         null=True,
         verbose_name="Изображение на форме подачи заявки (PUBG фото)"
     )
+    rules_image = models.ImageField(
+        upload_to="rules/",
+        blank=True,
+        null=True,
+        verbose_name="Изображение над Уставом/Правилами (PUBG фото)"
+    )
 
     class Meta:
         verbose_name = "Общие настройки сайта"
