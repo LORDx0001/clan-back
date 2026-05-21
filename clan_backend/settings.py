@@ -51,6 +51,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  # At the top!
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Serves static files in production!
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -205,3 +206,20 @@ JAZZMIN_UI_TWEAKS = {
         "success": "btn-success"
     }
 }
+
+# CSRF Trusted Origins for Secure Production HTTPS logins
+csrf_env = os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '')
+if csrf_env:
+    CSRF_TRUSTED_ORIGINS = csrf_env.split(',')
+else:
+    # Generous dynamic helper: allow request's HOST header in trusted origins!
+    # On production SSL reverse proxies, we trust localhost, domain.com, etc.
+    CSRF_TRUSTED_ORIGINS = [
+        'https://*.vmi3212613.yourdomain.com',
+        'http://127.0.0.1:8000',
+        'http://localhost:3000',
+        'https://clan.pubg',
+    ]
+
+# Keep this to preserve reverse proxy https scheme detection
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
