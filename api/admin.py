@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import ClanConfig, Player, PlayerRole, HeroBackgroundSlide, Announcement, GalleryItem, ScheduleEvent, ClanRule, RecruitmentSubmission
+from .models import ClanConfig, Player, PlayerRole, HeroBackgroundSlide, Announcement, GalleryItem, ScheduleEvent, ClanRule, RecruitmentSubmission, PlayerMedia
 
 @admin.register(PlayerRole)
 class PlayerRoleAdmin(admin.ModelAdmin):
@@ -53,22 +53,30 @@ class ClanConfigAdmin(admin.ModelAdmin):
         return False
 
 
+class PlayerMediaInline(admin.TabularInline):
+    model = PlayerMedia
+    extra = 2
+    verbose_name = "Медиафайл игрока"
+    verbose_name_plural = "Дополнительные фотографии и видео игрока"
+
+
 @admin.register(Player)
 class PlayerAdmin(admin.ModelAdmin):
     list_display = ('nickname_preview', 'role', 'level', 'signature_weapon', 'region', 'joined_date')
     list_filter = ('role', 'region')
     search_fields = ('nickname', 'device', 'signature_weapon', 'achievements')
     list_editable = ('level',)
+    inlines = [PlayerMediaInline]
     
     fieldsets = (
         ('Игровой профиль', {
-            'fields': ('nickname', 'role', 'level', 'kd', 'signature_weapon')
+            'fields': ('nickname', 'role', 'level', 'kd', 'signature_weapon', 'device')
         }),
         ('Аватар и Медиа профиля', {
             'fields': ('avatar_file', 'profile_file')
         }),
         ('Остальные сведения', {
-            'fields': ('achievements', 'region', 'joined_date')
+            'fields': ('achievements', 'region', 'joined_date', 'description')
         }),
     )
 

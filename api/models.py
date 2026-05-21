@@ -117,7 +117,7 @@ class HeroBackgroundSlide(models.Model):
 class Player(models.Model):
     nickname = models.CharField(max_length=100, verbose_name="Никнейм игрока")
     role = models.ForeignKey(PlayerRole, on_delete=models.CASCADE, verbose_name="Роль игрока", related_name="players", null=True, blank=True)
-    device = models.CharField(max_length=150, verbose_name="Игровое устройство")
+    device = models.CharField(max_length=150, blank=True, default="", verbose_name="Игровое устройство (необязательно)")
     level = models.PositiveIntegerField(default=1, verbose_name="Уровень аккаунта")
     kd = models.FloatField(blank=True, null=True, verbose_name="K/D Ratio (необязательно)")
     signature_weapon = models.CharField(max_length=150, default="", verbose_name="Любимое оружие")
@@ -131,6 +131,7 @@ class Player(models.Model):
     )
     region = models.CharField(max_length=150, default="", verbose_name="Регион")
     joined_date = models.CharField(max_length=100, verbose_name="Когда присоединился")
+    description = models.TextField(blank=True, default="", verbose_name="Описание игрока (необязательно)")
 
     class Meta:
         verbose_name = "Игрок (Ростер)"
@@ -149,6 +150,18 @@ class Player(models.Model):
         if self.profile_file:
             return self.profile_file.url
         return ""
+
+
+class PlayerMedia(models.Model):
+    player = models.ForeignKey(Player, on_delete=models.CASCADE, related_name="media_gallery", verbose_name="Игрок")
+    file = models.FileField(upload_to="player_media/", verbose_name="Файл медиа (Фото или Видео)")
+
+    class Meta:
+        verbose_name = "Медиафайл игрока"
+        verbose_name_plural = "Дополнительные медиафайлы игрока"
+
+    def __str__(self):
+        return f"Медиа для {self.player.nickname} (#{self.id})"
 
 
 class Announcement(models.Model):

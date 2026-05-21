@@ -89,6 +89,13 @@ def players_list_api(request):
         profile_url = get_absolute_media_url(request, p.get_profile_url())
         achievements_list = [line.strip() for line in p.achievements.split('\n') if line.strip()]
         
+        # Serialize dynamic additional media gallery files
+        additional_media = [
+            get_absolute_media_url(request, m.file.url)
+            for m in p.media_gallery.all()
+            if m.file
+        ]
+        
         player_dict = {
             "id": str(p.id),
             "nickname": p.nickname,
@@ -100,7 +107,9 @@ def players_list_api(request):
             "profileMedia": profile_url,
             "achievements": achievements_list,
             "region": p.region,
-            "joinedDate": p.joined_date
+            "joinedDate": p.joined_date,
+            "description": p.description,
+            "additionalMedia": additional_media
         }
         if p.kd is not None:
             player_dict["kd"] = p.kd
