@@ -31,6 +31,15 @@ STATE_HL_TITLE = "HL_TITLE"
 STATE_HL_CATEGORY = "HL_CATEGORY"
 STATE_HL_MEDIA = "HL_MEDIA"
 
+# Set of optional states that are skipped during both registration and editing
+OPTIONAL_STATES = {
+    STATE_ROSTER_UID,
+    STATE_ROSTER_DEVICE,
+    STATE_ROSTER_KD,
+    STATE_ROSTER_AVATAR,
+    STATE_ROSTER_DESCRIPTION
+}
+
 class Command(BaseCommand):
     help = "Запускает Telegram бот для приема анкет в состав и хайлайтов"
 
@@ -118,6 +127,26 @@ class Command(BaseCommand):
             payload["reply_markup"] = json.dumps(reply_markup)
         return self.send_telegram("sendMessage", payload)
 
+    def get_step_keyboard(self, chat_id, next_state):
+        is_edit = self.user_states[chat_id]["is_edit"]
+        is_optional = next_state in OPTIONAL_STATES
+        
+        if is_edit or is_optional:
+            buttons = [
+                [{"text": "Пропустить ⏭️"}],
+                [{"text": "отмена"}]
+            ]
+        else:
+            buttons = [
+                [{"text": "отмена"}]
+            ]
+            
+        return {
+            "keyboard": buttons,
+            "resize_keyboard": True,
+            "one_time_keyboard": True
+        }
+
     def send_main_menu(self, chat_id, welcome_text):
         player = Player.objects.filter(telegram_id=chat_id).first()
 
@@ -169,14 +198,19 @@ class Command(BaseCommand):
                 "is_edit": is_edit
             }
             
-            skip_info = "\n\n💡 _Вы можете отправить /skip на любом шаге, чтобы оставить старое значение._" if is_edit else ""
+            skip_info = "\n\n💡 _Вы можете нажать кнопку 'Пропустить ⏭️' на любом шаге, чтобы оставить старое значение._" if is_edit else ""
             cancel_info = "\n\n❌ _Для отмены отправьте слово 'отмена'._"
             
             prompt = "Шаг 1: Введите ваш *Игровой Никнейм* (который будет на сайте):"
             if is_edit:
                 prompt = f"Текущий никнейм: *{player.nickname}*\n\nВведите новый никнейм:"
             
-            self.send_message(chat_id, f"🚀 Начинаем заполнение анкеты в состав!{skip_info}{cancel_info}\n\n{prompt}")
+            reply_markup = {
+                "keyboard": [[{"text": "Пропустить ⏭️"}], [{"text": "отмена"}]] if is_edit else [[{"text": "отмена"}]],
+                "resize_keyboard": True,
+                "one_time_keyboard": True
+            }
+            self.send_message(chat_id, f"🚀 Начинаем заполнение анкеты в состав!{skip_info}{cancel_info}\n\n{prompt}", reply_markup)
 
         elif text == "🎥 Добавить хайлайт":
             if not player:
@@ -228,7 +262,7 @@ class Command(BaseCommand):
         text = message.get("text", "").strip()
         player = Player.objects.filter(telegram_id=chat_id).first()
         is_edit = self.user_states[chat_id]["is_edit"]
-        is_skip = text.lower() == "/skip" and is_edit
+        is_skip = text.lower() in ["/skip", "пропустить", "пропустить ⏭️"] and (is_edit or state in OPTIONAL_STATES)
 
         # ----------------------------------------------------------------------
         # ROSTER PROFILE FLOW
@@ -243,10 +277,10 @@ class Command(BaseCommand):
                 self.user_states[chat_id]["data"]["nickname"] = player.nickname
 
             self.user_states[chat_id]["state"] = STATE_ROSTER_UID
-            prompt = "Шаг 2: Введите ваш *PUBG ID (UID)* (только цифры, например: 5123456789):"
+            prompt = "Шаг 2: Введите ваш *PUBG ID (UID)* (необязательно, только цифры, например: 5123456789):"
             if is_edit:
                 prompt = f"Текущий PUBG ID: *{player.uid}*\n\nВведите новый PUBG ID:"
-            self.send_message(chat_id, prompt)
+            self.send_message(chat_id, prompt, self.get_step_keyboard(chat_id, STATE_ROSTER_UID))
 
         elif state == STATE_ROSTER_UID:
             if not is_skip:
@@ -255,7 +289,7 @@ class Command(BaseCommand):
                     return
                 self.user_states[chat_id]["data"]["uid"] = text
             else:
-                self.user_states[chat_id]["data"]["uid"] = player.uid
+                self.user_states[chat_id]["data"]["uid"] = player.uid if is_edit else ""
 
             # Query roles to show inline buttons
             roles = PlayerRole.objects.all()
@@ -267,7 +301,7 @@ class Command(BaseCommand):
                 buttons.append([{"text": r.name}])
             
             if is_edit:
-                buttons.append([{"text": "/skip"}])
+                buttons.append([{"text": "Пропустить ⏭️"}])
             buttons.append([{"text": "отмена"}])
 
             reply_markup = {
@@ -294,19 +328,13 @@ class Command(BaseCommand):
                     db_role = PlayerRole.objects.create(name=text)
                 self.user_states[chat_id]["data"]["role_id"] = db_role.id
             else:
-                self.user_states[chat_id]["data"]["role_id"] = player.role.id if player.role else None
-
-            # Reset standard keyboard back for general texts
-            reply_markup = {
-                "keyboard": [[{"text": "/skip"}]] if is_edit else [[{"text": "отмена"}]],
-                "resize_keyboard": True
-            }
+                self.user_states[chat_id]["data"]["role_id"] = player.role.id if (player and player.role) else None
 
             self.user_states[chat_id]["state"] = STATE_ROSTER_DEVICE
-            prompt = "Шаг 4: Введите ваше *Игровое Устройство* (например: iPad Pro M2, iPhone 15 Pro):"
+            prompt = "Шаг 4: Введите ваше *Игровое Устройство* (необязательно, например: iPad Pro M2, iPhone 15 Pro):"
             if is_edit:
                 prompt = f"Текущее устройство: *{player.device}*\n\nВведите новое устройство:"
-            self.send_message(chat_id, prompt, reply_markup)
+            self.send_message(chat_id, prompt, self.get_step_keyboard(chat_id, STATE_ROSTER_DEVICE))
 
         elif state == STATE_ROSTER_DEVICE:
             if not is_skip:
@@ -315,13 +343,13 @@ class Command(BaseCommand):
                     return
                 self.user_states[chat_id]["data"]["device"] = text
             else:
-                self.user_states[chat_id]["data"]["device"] = player.device
+                self.user_states[chat_id]["data"]["device"] = player.device if is_edit else ""
 
             self.user_states[chat_id]["state"] = STATE_ROSTER_LEVEL
             prompt = "Шаг 5: Укажите *Уровень Аккаунта* (например: 75):"
             if is_edit:
                 prompt = f"Текущий уровень: *{player.level}*\n\nВведите новый уровень:"
-            self.send_message(chat_id, prompt)
+            self.send_message(chat_id, prompt, self.get_step_keyboard(chat_id, STATE_ROSTER_LEVEL))
 
         elif state == STATE_ROSTER_LEVEL:
             if not is_skip:
@@ -337,10 +365,10 @@ class Command(BaseCommand):
                 self.user_states[chat_id]["data"]["level"] = player.level
 
             self.user_states[chat_id]["state"] = STATE_ROSTER_KD
-            prompt = "Шаг 6: Укажите ваш текущий *K/D Ratio* (коэффициент убийств/смертей, например: 4.85 или 5.2):"
+            prompt = "Шаг 6: Укажите ваш текущий *K/D Ratio* (необязательно, например: 4.85 или 5.2):"
             if is_edit:
                 prompt = f"Текущий K/D: *{player.kd}*\n\nВведите новый K/D:"
-            self.send_message(chat_id, prompt)
+            self.send_message(chat_id, prompt, self.get_step_keyboard(chat_id, STATE_ROSTER_KD))
 
         elif state == STATE_ROSTER_KD:
             if not is_skip:
@@ -355,13 +383,13 @@ class Command(BaseCommand):
                     self.send_message(chat_id, "⚠️ K/D должен быть положительным числом! Укажите K/D (например: 5.1):")
                     return
             else:
-                self.user_states[chat_id]["data"]["kd"] = player.kd
+                self.user_states[chat_id]["data"]["kd"] = player.kd if is_edit else None
 
             self.user_states[chat_id]["state"] = STATE_ROSTER_WEAPON
             prompt = "Шаг 7: Укажите ваше *Коронное/Любимое Оружие* (например: M416 + DP-28, AWM):"
             if is_edit:
                 prompt = f"Коронное оружие: *{player.signature_weapon}*\n\nУкажите новое любимое оружие:"
-            self.send_message(chat_id, prompt)
+            self.send_message(chat_id, prompt, self.get_step_keyboard(chat_id, STATE_ROSTER_WEAPON))
 
         elif state == STATE_ROSTER_WEAPON:
             if not is_skip:
@@ -373,10 +401,10 @@ class Command(BaseCommand):
                 self.user_states[chat_id]["data"]["signature_weapon"] = player.signature_weapon
 
             self.user_states[chat_id]["state"] = STATE_ROSTER_AVATAR
-            prompt = "Шаг 8: 📸 Отправьте вашу *Аватарку* (картинку / фото) для сайта. Пожалуйста, отправьте именно фото (сжатое, не файл):"
+            prompt = "Шаг 8: 📸 Отправьте вашу *Аватарку* (картинку / фото, необязательно, отправьте фото или нажмите пропустить):"
             if is_edit:
                 prompt = f"📸 У вас уже загружена аватарка. Отправьте новое фото, чтобы заменить ее, или пропустите:"
-            self.send_message(chat_id, prompt)
+            self.send_message(chat_id, prompt, self.get_step_keyboard(chat_id, STATE_ROSTER_AVATAR))
 
         elif state == STATE_ROSTER_AVATAR:
             photo = message.get("photo")
@@ -395,7 +423,7 @@ class Command(BaseCommand):
             if is_edit:
                 current_ach = player.achievements if player else ""
                 prompt = f"Текущие достижения:\n{current_ach}\n\nВведите новый список достижений:"
-            self.send_message(chat_id, prompt)
+            self.send_message(chat_id, prompt, self.get_step_keyboard(chat_id, STATE_ROSTER_ACHIEVEMENTS))
 
         elif state == STATE_ROSTER_ACHIEVEMENTS:
             if not is_skip:
@@ -410,7 +438,7 @@ class Command(BaseCommand):
             prompt = "Шаг 10: Укажите ваш *Регион/Страну* (например: Россия, Казахстан, Узбекистан):"
             if is_edit:
                 prompt = f"Текущий регион: *{player.region}*\n\nВведите новый регион:"
-            self.send_message(chat_id, prompt)
+            self.send_message(chat_id, prompt, self.get_step_keyboard(chat_id, STATE_ROSTER_REGION))
 
         elif state == STATE_ROSTER_REGION:
             if not is_skip:
@@ -422,16 +450,16 @@ class Command(BaseCommand):
                 self.user_states[chat_id]["data"]["region"] = player.region
 
             self.user_states[chat_id]["state"] = STATE_ROSTER_DESCRIPTION
-            prompt = "Шаг 11: 📝 Добавьте *Описание/Биографию* о себе (необязательно, отправьте /skip чтобы пропустить):"
+            prompt = "Шаг 11: 📝 Добавьте *Описание/Биографию* о себе (необязательно, нажмите пропустить):"
             if is_edit:
                 prompt = f"Текущая биография: *{player.description}*\n\nВведите новое описание профиля:"
-            self.send_message(chat_id, prompt)
+            self.send_message(chat_id, prompt, self.get_step_keyboard(chat_id, STATE_ROSTER_DESCRIPTION))
 
         elif state == STATE_ROSTER_DESCRIPTION:
             if not is_skip:
                 self.user_states[chat_id]["data"]["description"] = text if text else ""
             else:
-                self.user_states[chat_id]["data"]["description"] = player.description if player else ""
+                self.user_states[chat_id]["data"]["description"] = player.description if is_edit else ""
 
             # Complete registration/update
             self.save_player_profile(chat_id)
