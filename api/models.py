@@ -137,6 +137,9 @@ class Player(models.Model):
     kd = models.FloatField(blank=True, null=True, verbose_name="K/D Ratio (необязательно)")
     signature_weapon = models.CharField(max_length=150, default="", verbose_name="Любимое оружие")
     
+    telegram_id = models.CharField(max_length=100, blank=True, null=True, verbose_name="Telegram ID игрока")
+    is_approved = models.BooleanField(default=True, verbose_name="Одобрено (Показывается на сайте)")
+    
     avatar_file = models.ImageField(upload_to="avatars/", validators=[validate_file_size], blank=True, null=True, verbose_name="Аватарка игрока (Файл фото)")
     profile_file = models.FileField(upload_to="player_profiles/", validators=[validate_file_size], blank=True, null=True, verbose_name="Полноэкранное медиа профиля (Файл фото или видео)")
     
@@ -216,6 +219,9 @@ class GalleryItem(models.Model):
     type = models.CharField(max_length=100, choices=TYPE_CHOICES, default='screenshot', verbose_name="Тип медиа")
     title = models.CharField(max_length=255, verbose_name="Название")
     category = models.CharField(max_length=100, default="", verbose_name="Категория")
+    
+    telegram_id = models.CharField(max_length=100, blank=True, null=True, verbose_name="Telegram ID автора")
+    is_approved = models.BooleanField(default=True, verbose_name="Одобрено (Показывается на сайте)")
     
     file_upload = models.FileField(upload_to="gallery/", validators=[validate_file_size], blank=True, null=True, verbose_name="Загрузить медиафайл напрямую")
     thumbnail_upload = models.ImageField(upload_to="gallery/thumbs/", validators=[validate_file_size], blank=True, null=True, verbose_name="Загрузить файл обложки")

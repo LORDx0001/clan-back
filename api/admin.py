@@ -62,15 +62,15 @@ class PlayerMediaInline(admin.TabularInline):
 
 @admin.register(Player)
 class PlayerAdmin(admin.ModelAdmin):
-    list_display = ('nickname_preview', 'clan_role', 'role', 'level', 'signature_weapon', 'region', 'joined_date')
-    list_filter = ('clan_role', 'role', 'region')
+    list_display = ('nickname_preview', 'is_approved', 'clan_role', 'role', 'level', 'signature_weapon', 'region', 'joined_date')
+    list_filter = ('is_approved', 'clan_role', 'role', 'region')
     search_fields = ('nickname', 'device', 'signature_weapon', 'achievements')
-    list_editable = ('level',)
+    list_editable = ('level', 'is_approved')
     inlines = [PlayerMediaInline]
     
     fieldsets = (
         ('Игровой профиль', {
-            'fields': ('nickname', 'uid', 'clan_role', 'role', 'level', 'kd', 'signature_weapon', 'device')
+            'fields': ('nickname', 'uid', 'clan_role', 'role', 'level', 'kd', 'signature_weapon', 'device', 'telegram_id', 'is_approved')
         }),
         ('Аватар и Медиа профиля', {
             'fields': ('avatar_file', 'profile_file')
@@ -112,15 +112,15 @@ class AnnouncementAdmin(admin.ModelAdmin):
 
 @admin.register(GalleryItem)
 class GalleryItemAdmin(admin.ModelAdmin):
-    list_display = ('title', 'type', 'category', 'date', 'author')
-    list_filter = ('type', 'category', 'date')
+    list_display = ('title', 'is_approved', 'type', 'category', 'date', 'author')
+    list_filter = ('is_approved', 'type', 'category', 'date')
     search_fields = ('title', 'category', 'author')
-    list_editable = ('category',)
+    list_editable = ('category', 'is_approved')
     filter_horizontal = ('tagged_players',)
     
     fieldsets = (
         ('Основное', {
-            'fields': ('title', 'category', 'description', 'tagged_players')
+            'fields': ('title', 'category', 'description', 'tagged_players', 'telegram_id', 'is_approved')
         }),
         ('Медиафайлы (Видео / Картинки)', {
             'fields': ('file_upload', 'thumbnail_upload')

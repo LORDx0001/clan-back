@@ -82,7 +82,7 @@ def players_list_api(request):
     """
     Returns list of roster players.
     """
-    players = Player.objects.all()
+    players = Player.objects.filter(is_approved=True)
     data = []
     for p in players:
         avatar_url = get_absolute_media_url(request, p.get_avatar_url())
@@ -199,7 +199,7 @@ def gallery_list_api(request):
     """
     Returns media screenshots, videos, and award cups.
     """
-    items = GalleryItem.objects.all()
+    items = GalleryItem.objects.filter(is_approved=True)
     data = []
     for item in items:
         file_url = get_absolute_media_url(request, item.get_file_url())
