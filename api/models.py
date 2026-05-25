@@ -165,8 +165,8 @@ class Player(models.Model):
         return ""
 
     def get_profile_url(self):
-        if self.profile_file:
-            return self.profile_file.url
+        if self.avatar_file:
+            return self.avatar_file.url
         return ""
 
 

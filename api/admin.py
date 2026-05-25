@@ -73,8 +73,8 @@ class PlayerAdmin(admin.ModelAdmin):
         ('Игровой профиль', {
             'fields': ('nickname', 'uid', 'clan_role', 'role', 'level', 'kd', 'signature_weapon', 'device', 'telegram_id', 'is_approved')
         }),
-        ('Аватар и Медиа профиля', {
-            'fields': ('avatar_file', 'profile_file')
+        ('Фото профиля (Аватар)', {
+            'fields': ('avatar_file',)
         }),
         ('Остальные сведения', {
             'fields': ('achievements', 'region', 'joined_date', 'description')
