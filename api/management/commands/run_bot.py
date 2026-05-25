@@ -72,7 +72,10 @@ class Command(BaseCommand):
                     data = response.json()
                     for update in data.get("result", []):
                         offset = update["update_id"] + 1
-                        self.process_update(update)
+                        try:
+                            self.process_update(update)
+                        except Exception as inner_e:
+                            self.stdout.write(self.style.ERROR(f"Ошибка обработки сообщения {update.get('update_id')}: {str(inner_e)}"))
                 else:
                     self.stdout.write(self.style.ERROR(f"Ошибка получения обновлений: {response.text}"))
                     time.sleep(5)
@@ -86,7 +89,7 @@ class Command(BaseCommand):
         
         message = update["message"]
         chat_id = str(message["chat"]["id"])
-        text = message.get("text", "").strip()
+        text = (message.get("text") or "").strip()
         user_info = message.get("from", {})
         first_name = user_info.get("first_name", "Игрок")
 
@@ -259,10 +262,10 @@ class Command(BaseCommand):
             self.send_main_menu(chat_id, "❓ Неизвестная команда. Пожалуйста, воспользуйтесь кнопками на клавиатуре:")
 
     def handle_state_wizards(self, chat_id, message, state):
-        text = message.get("text", "").strip()
+        text = (message.get("text") or "").strip()
         player = Player.objects.filter(telegram_id=chat_id).first()
         is_edit = self.user_states[chat_id]["is_edit"]
-        is_skip = text.lower() in ["/skip", "пропустить", "пропустить ⏭️"] and (is_edit or state in OPTIONAL_STATES)
+        is_skip = (text.lower() in ["/skip", "пропустить", "пропустить ⏭️"]) and (is_edit or state in OPTIONAL_STATES)
 
         # ----------------------------------------------------------------------
         # ROSTER PROFILE FLOW

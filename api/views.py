@@ -17,6 +17,15 @@ def get_absolute_media_url(request, path_or_url):
         return ""
     if path_or_url.startswith("http://") or path_or_url.startswith("https://") or path_or_url.startswith("//"):
         return path_or_url
+        
+    # Proxy headers check (Nginx reverse proxy support)
+    forwarded_proto = request.META.get('HTTP_X_FORWARDED_PROTO') or ('https' if request.is_secure() else 'http')
+    forwarded_host = request.META.get('HTTP_X_FORWARDED_HOST')
+    
+    if forwarded_host:
+        path = path_or_url if path_or_url.startswith('/') else f"/{path_or_url}"
+        return f"{forwarded_proto}://{forwarded_host}{path}"
+        
     return request.build_absolute_uri(path_or_url)
 
 
