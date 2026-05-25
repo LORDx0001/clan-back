@@ -139,6 +139,7 @@ class Player(models.Model):
     
     telegram_id = models.CharField(max_length=100, blank=True, null=True, verbose_name="Telegram ID игрока")
     is_approved = models.BooleanField(default=True, verbose_name="Одобрено (Показывается на сайте)")
+    order = models.PositiveIntegerField(default=0, verbose_name="Порядок сортировки (Позиция)")
     
     avatar_file = models.ImageField(upload_to="avatars/", validators=[validate_file_size], blank=True, null=True, verbose_name="Аватарка игрока (Файл фото)")
     profile_file = models.FileField(upload_to="player_profiles/", validators=[validate_file_size], blank=True, null=True, verbose_name="Полноэкранное медиа профиля (Файл фото или видео)")
@@ -154,7 +155,7 @@ class Player(models.Model):
     class Meta:
         verbose_name = "Игрок (Ростер)"
         verbose_name_plural = "Состав (Ростер)"
-        ordering = ['id']
+        ordering = ['order', 'id']
 
     def __str__(self):
         return f"{self.nickname} ({self.role.name if self.role else 'Без роли'})"
