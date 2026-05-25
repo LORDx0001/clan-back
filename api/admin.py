@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 from .models import ClanConfig, Player, PlayerRole, HeroBackgroundSlide, Announcement, GalleryItem, ScheduleEvent, ClanRule, RecruitmentSubmission, PlayerMedia
 
 @admin.register(PlayerRole)
@@ -192,7 +193,7 @@ class RecruitmentSubmissionAdmin(admin.ModelAdmin):
         if not found:
             return "Скриншоты статистики не прикреплены"
         html += '</div>'
-        return format_html(html)
+        return mark_safe(html)
     stat_photos_preview.short_description = 'Скриншоты статистики'
 
     def grade_badge(self, obj):
