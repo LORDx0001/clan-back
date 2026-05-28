@@ -179,9 +179,36 @@ class BotUserPlayerInline(admin.StackedInline):
         }),
     )
 
+from django import forms
+from django.db import models
+
+class BotUserAdminForm(forms.ModelForm):
+    existing_player = forms.ModelChoiceField(
+        queryset=Player.objects.filter(user__isnull=True),
+        required=False,
+        label="🔗 ПРИВЯЗАТЬ СУЩЕСТВУЮЩУЮ КАРТОЧКУ",
+        help_text="Если карточка уже была создана в Ростере, выберите её здесь. Оставьте пустым, если хотите создать новую карточку ниже."
+    )
+
+    class Meta:
+        model = BotUser
+        fields = ('username', 'is_active')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            p = getattr(self.instance, 'player_profile', None)
+            # Разрешаем выбрать свободные карточки + текущую
+            self.fields['existing_player'].queryset = Player.objects.filter(
+                models.Q(user__isnull=True) | models.Q(user=self.instance)
+            )
+            if p:
+                self.fields['existing_player'].initial = p
+
 @admin.register(BotUser)
 class BotUserAdmin(admin.ModelAdmin):
     """Отдельный список пользователей, зарегистрированных через Telegram-бот"""
+    form = BotUserAdminForm
     inlines = (BotUserPlayerInline,)
     list_display = ('username', 'active_status', 'tg_id_col', 'player_nickname_col',
                     'card_status_col', 'date_joined')
@@ -201,10 +228,29 @@ class BotUserAdmin(admin.ModelAdmin):
         return False  # Добавляются только через бот
 
     def get_fields(self, request, obj=None):
-        return ('username', 'is_active')
+        return ('username', 'is_active', 'existing_player')
 
     def get_readonly_fields(self, request, obj=None):
         return ('username',)
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        existing_player = form.cleaned_data.get('existing_player')
+        current_player = getattr(obj, 'player_profile', None)
+        
+        # Если выбрали другую карточку
+        if existing_player and existing_player != current_player:
+            # Отвязываем старую
+            if current_player:
+                current_player.user = None
+                current_player.save()
+            # Привязываем новую
+            existing_player.user = obj
+            existing_player.save()
+        # Если очистили поле
+        elif not existing_player and current_player:
+            current_player.user = None
+            current_player.save()
 
     # ── Колонки ────────────────────────────────────────────────────────────────
     def active_status(self, obj):
