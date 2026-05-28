@@ -316,6 +316,7 @@ class PlayerAdmin(admin.ModelAdmin):
     search_fields = ('nickname', 'device', 'signature_weapon', 'achievements')
     list_editable = ('order', 'level', 'is_approved')
     inlines = [PlayerMediaInline]
+    raw_id_fields = ('user',)
     
     fieldsets = (
         ('Игровой профиль', {

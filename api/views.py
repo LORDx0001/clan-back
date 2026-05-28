@@ -517,12 +517,19 @@ def register_api(request):
             is_active=False
         )
         
-        # Create minimal player profile linked
-        player = Player.objects.create(
-            nickname=nickname,
-            is_approved=False,
-            user=user
-        )
+        # Check if a player with this nickname already exists and has no user
+        existing_player = Player.objects.filter(nickname__iexact=nickname, user__isnull=True).first()
+        
+        if existing_player:
+            existing_player.user = user
+            existing_player.save()
+        else:
+            # Create minimal player profile linked
+            Player.objects.create(
+                nickname=nickname,
+                is_approved=False,
+                user=user
+            )
         
         # Notify admin via Telegram
         bot_token = os.environ.get('TELEGRAM_BOT_TOKEN')
