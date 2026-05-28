@@ -496,10 +496,10 @@ def register_api(request):
         data = json.loads(request.body)
         username = data.get('username', '').strip()
         password = data.get('password', '')
-        telegram_contact = data.get('telegram', '').strip()
+        nickname = data.get('nickname', '').strip()
         
-        if not username or not password:
-            return JsonResponse({"error": "Логин и пароль обязательны"}, status=400)
+        if not username or not password or not nickname:
+            return JsonResponse({"error": "Все поля обязательны для заполнения"}, status=400)
             
         if len(username) < 3 or not username.isalnum():
             return JsonResponse({"error": "Логин должен содержать только буквы и цифры (мин. 3 символа)"}, status=400)
@@ -519,7 +519,7 @@ def register_api(request):
         
         # Create minimal player profile linked
         player = Player.objects.create(
-            nickname=username,
+            nickname=nickname,
             is_approved=False,
             user=user
         )
@@ -531,7 +531,7 @@ def register_api(request):
             msg = (
                 f"🔔 *Новая регистрация на сайте!*\n\n"
                 f"👤 *Логин:* `{username}`\n"
-                f"💬 *Контакт (TG):* {telegram_contact if telegram_contact else 'Не указан'}\n\n"
+                f"🎮 *Никнейм в игре:* {nickname}\n\n"
                 f"Перейдите в админ-панель для активации:\n"
                 f"👉 [Активировать пользователя](https://music.lordx.uz/admin/auth/user/{user.id}/change/)"
             )
