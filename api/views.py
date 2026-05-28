@@ -400,12 +400,18 @@ def login_api(request):
         password = data.get('password')
         
         user = authenticate(request, username=username, password=password)
+        
         if user is not None:
-            if not user.is_active:
-                return JsonResponse({"error": "Аккаунт еще не подтвержден администратором"}, status=403)
             login(request, user)
             return JsonResponse({"success": True, "username": user.username})
         else:
+            # Django's authenticate() returns None if user is inactive.
+            # Let's check manually to give a clear error message.
+            try_user = User.objects.filter(username=username).first()
+            if try_user and try_user.check_password(password):
+                if not try_user.is_active:
+                    return JsonResponse({"error": "Аккаунт еще не подтвержден администратором. Пожалуйста, ожидайте!"}, status=401)
+            
             return JsonResponse({"error": "Неверный логин или пароль"}, status=401)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
