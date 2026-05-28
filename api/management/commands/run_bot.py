@@ -127,11 +127,17 @@ class Command(BaseCommand):
         if "message" not in update:
             return
         msg      = update["message"]
+        chat_type = msg.get("chat", {}).get("type")
+        if chat_type != "private":
+            # Игнорируем любые групповые чаты, супергруппы и каналы, чтобы не зацикливаться!
+            return
+
         chat_id  = str(msg["chat"]["id"])
         text     = (msg.get("text") or "").strip()
         from_user = msg.get("from", {})
         name     = from_user.get("first_name", "Пользователь")
         username = from_user.get("username", "нет")
+
 
         # Init state
         if chat_id not in self.user_states:
