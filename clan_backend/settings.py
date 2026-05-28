@@ -227,3 +227,21 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 CORS_ALLOW_CREDENTIALS = True
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SAMESITE = 'Lax'
+
+# ── Media / Static file caching headers ──────────────────────────────────────
+# WhiteNoise: cache static files 1 year (fingerprinted)
+WHITENOISE_MAX_AGE = 31536000
+
+# API responses: cache config/players/gallery for 60 sec on CDN / browser
+# Individual views set Cache-Control themselves; this is a fallback.
+CACHE_MIDDLEWARE_SECONDS = 60
+CACHE_MIDDLEWARE_KEY_PREFIX = "clan"
+
+# In-memory cache for dev (use memcached/redis in prod)
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "clan-cache",
+        "TIMEOUT": 60,
+    }
+}
