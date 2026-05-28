@@ -17,6 +17,7 @@ STATE_REG_PASSWORD    = "REG_PASSWORD"
 STATE_REG_CONFIRM     = "REG_CONFIRM"      # повтор пароля
 STATE_RESET_PASSWORD  = "RESET_PASSWORD"
 STATE_RESET_CONFIRM   = "RESET_CONFIRM"    # повтор нового пароля
+STATE_DELETE_ACCOUNT  = "DELETE_ACCOUNT"
 
 
 class Command(BaseCommand):
@@ -114,6 +115,7 @@ class Command(BaseCommand):
         if already:
             buttons = [
                 [{"text": "🔑 Сменить пароль"}],
+                [{"text": "❌ Удалить аккаунт"}],
             ]
         else:
             buttons = [
@@ -215,6 +217,33 @@ class Command(BaseCommand):
                 f"Аккаунт: `{player.user.username}`\n\n"
                 f"Введите *новый пароль* (минимум 6 символов):",
                 self.cancel_kb()
+            )
+            return
+
+        if text == "❌ Удалить аккаунт":
+            player = Player.objects.filter(telegram_id=chat_id).first()
+            if not player or not player.user:
+                self.send(chat_id,
+                    "⚠️ У вас нет активного аккаунта.")
+                self.main_menu(chat_id)
+                return
+
+            self.user_states[chat_id] = {
+                "state": STATE_DELETE_ACCOUNT,
+                "data": {"user_id": player.user.id, "username": player.user.username}
+            }
+            buttons = [
+                [{"text": "⚠️ Да, удалить мой аккаунт"}],
+                [{"text": "❌ Отмена"}]
+            ]
+            self.send(
+                chat_id,
+                f"⚠️ *Удаление аккаунта*\n\n"
+                f"Вы действительно хотите полностью удалить аккаунт `{player.user.username}`?\n\n"
+                f"• Карточка игрока (профиль на сайте) останется без владельца, но **не удалится**.\n"
+                f"• Вы больше не сможете заходить на сайт под этим логином.\n\n"
+                f"Для подтверждения нажмите кнопку ниже:",
+                buttons
             )
             return
 
@@ -367,3 +396,38 @@ class Command(BaseCommand):
             except Exception as e:
                 self.user_states[chat_id] = {"state": STATE_NONE, "data": {}}
                 self.send(chat_id, f"❌ Ошибка смены пароля: `{e}`")
+
+        # ── DELETE ACCOUNT ──────────────────────────────────────────────────────
+        elif state == STATE_DELETE_ACCOUNT:
+            if text == "⚠️ Да, удалить мой аккаунт":
+                try:
+                    user_id = data["user_id"]
+                    username_val = data["username"]
+                    user = User.objects.filter(id=user_id).first()
+                    
+                    # Отвязываем карточки (оставляем без владельца, но не удаляем)
+                    Player.objects.filter(user=user).update(user=None)
+                    
+                    if user:
+                        user.delete()
+                        
+                    self.user_states[chat_id] = {"state": STATE_NONE, "data": {}}
+                    self.main_menu(chat_id, f"✅ Аккаунт `{username_val}` успешно удален с сайта!")
+                    
+                    # Уведомление в группу
+                    if self.admin_chat_id:
+                        self.send(
+                            self.admin_chat_id,
+                            f"🚨 *Аккаунт удален через Telegram!*\n\n"
+                            f"🆔 *Telegram ID:* `{chat_id}`\n"
+                            f"🔑 *Логин:* `{username_val}`\n"
+                            f"ℹ️ Карточка игрока на сайте осталась, но теперь свободна (без владельца)."
+                        )
+                except Exception as e:
+                    self.user_states[chat_id] = {"state": STATE_NONE, "data": {}}
+                    self.send(chat_id, f"❌ Ошибка при удалении аккаунта: `{e}`")
+                    self.main_menu(chat_id)
+            else:
+                self.user_states[chat_id] = {"state": STATE_NONE, "data": {}}
+                self.main_menu(chat_id, "❌ Удаление аккаунта отменено.")
+
