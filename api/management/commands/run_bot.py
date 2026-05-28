@@ -344,7 +344,7 @@ class Command(BaseCommand):
                         f"💬 *Username в TG:* {tg_user_str}\n"
                         f"🔑 *Придуманный Логин:* `{username}`\n\n"
                         f"Перейдите в админ-панель для активации:\n"
-                        f"👉 [Открыть пользователя в Admin](http://127.0.0.1:8000/admin/auth/user/{user.id}/change/)"
+                        f"👉 [Открыть пользователя в Admin](https://music.lordx.uz/admin/api/botuser/{user.id}/change/)"
                     )
             except Exception as e:
                 self.user_states[chat_id] = {"state": STATE_NONE, "data": {}}
