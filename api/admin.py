@@ -5,6 +5,15 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
 from .models import ClanConfig, Player, PlayerRole, HeroBackgroundSlide, Announcement, GalleryItem, ScheduleEvent, ClanRule, RecruitmentSubmission, PlayerMedia
 
+# ── Proxy model: Зарегистрированные через Telegram ────────────────────────────
+class BotUser(User):
+    """Прокси-модель для отображения пользователей, зарегистрированных через Telegram-бот"""
+    class Meta:
+        proxy = True
+        verbose_name = "Пользователь (Зарегистрирован через бот)"
+        verbose_name_plural = "👥 Пользователи (Зарегистрированы через бот)"
+
+
 # Unregister standard User model to register our customized one
 admin.site.unregister(User)
 
@@ -121,7 +130,7 @@ class UserAdmin(BaseUserAdmin):
                 '<code style="font-size:12px;font-weight:bold">{}</code>',
                 p.telegram_id
             )
-        return format_html('<span style="color:#999">Нет</span>')
+        return mark_safe('<span style="color:#999">Нет</span>')
     telegram_id_badge.short_description = 'Telegram ID'
 
     def player_card_badge(self, obj):
@@ -130,9 +139,7 @@ class UserAdmin(BaseUserAdmin):
             return format_html(
                 '<strong style="color:#6366f1">{}</strong>', p.nickname
             )
-        return format_html(
-            '<span style="color:#f59e0b;font-weight:bold">⚠ Нет карточки</span>'
-        )
+        return mark_safe('<span style="color:#f59e0b;font-weight:bold">⚠ Нет карточки</span>')
     player_card_badge.short_description = 'Карточка игрока'
 
     def player_approved_badge(self, obj):
@@ -145,8 +152,99 @@ class UserAdmin(BaseUserAdmin):
                 'border-radius:4px;font-size:11px;font-weight:bold">{}</span>',
                 color, text
             )
-        return format_html('<span style="color:#999">—</span>')
+        return mark_safe('<span style="color:#999">—</span>')
     player_approved_badge.short_description = 'Статус карточки'
+
+
+# ── Отдельный раздел: Зарегистрированные через Telegram-бот ───────────────────
+class BotUserPlayerInline(admin.StackedInline):
+    model = Player
+    can_delete = False
+    verbose_name = "Карточка игрока"
+    verbose_name_plural = "🎮 Привязать / Создать карточку игрока"
+    fk_name = 'user'
+    extra = 1   # Показываем пустую форму для привязки
+    fieldsets = (
+        ('⚙️ Настройки (только Администратор)', {
+            'fields': ('is_approved', 'telegram_id', 'order', 'clan_role', 'role', 'joined_date')
+        }),
+        ('🎮 Игровые данные', {
+            'fields': ('nickname', 'uid', 'device', 'level', 'kd', 'signature_weapon', 'region')
+        }),
+        ('🖼️ Медиафайлы', {
+            'fields': ('avatar_file', 'profile_file')
+        }),
+        ('📝 Описание и Достижения', {
+            'fields': ('achievements', 'description')
+        }),
+    )
+
+@admin.register(BotUser)
+class BotUserAdmin(admin.ModelAdmin):
+    """Отдельный список пользователей, зарегистрированных через Telegram-бот"""
+    inlines = (BotUserPlayerInline,)
+    list_display = ('username', 'active_status', 'tg_id_col', 'player_nickname_col',
+                    'card_status_col', 'date_joined')
+    list_filter = ('is_active',)
+    search_fields = ('username', 'player_profile__telegram_id', 'player_profile__nickname')
+    ordering = ('-date_joined',)
+    list_select_related = ('player_profile',)
+
+    def get_queryset(self, request):
+        # Показываем только тех, у кого есть связанный Player с telegram_id (зарегистрированы через бота)
+        return super().get_queryset(request).filter(
+            player_profile__telegram_id__isnull=False
+        ).exclude(player_profile__telegram_id='')
+
+    def has_add_permission(self, request):
+        return False  # Добавляются только через бот
+
+    def get_fields(self, request, obj=None):
+        return ('username', 'is_active')
+
+    def get_readonly_fields(self, request, obj=None):
+        return ('username',)
+
+    # ── Колонки ────────────────────────────────────────────────────────────────
+    def active_status(self, obj):
+        if obj.is_active:
+            return format_html(
+                '<span style="background:#10b981;color:#fff;padding:3px 10px;'
+                'border-radius:4px;font-size:11px;font-weight:bold">✅ Активен</span>'
+            )
+        return format_html(
+            '<span style="background:#ef4444;color:#fff;padding:3px 10px;'
+            'border-radius:4px;font-size:11px;font-weight:bold">🚫 Заблокирован</span>'
+        )
+    active_status.short_description = 'Вход на сайт'
+
+    def tg_id_col(self, obj):
+        p = getattr(obj, 'player_profile', None)
+        if p and p.telegram_id:
+            return format_html('<code style="font-weight:bold">{}</code>', p.telegram_id)
+        return '—'
+    tg_id_col.short_description = 'Telegram ID'
+
+    def player_nickname_col(self, obj):
+        p = getattr(obj, 'player_profile', None)
+        if p:
+            return format_html('<strong style="color:#6366f1">{}</strong>', p.nickname)
+        return mark_safe('<span style="color:#f59e0b">⚠ Нет карточки</span>')
+    player_nickname_col.short_description = 'Никнейм (Карточка)'
+
+    def card_status_col(self, obj):
+        p = getattr(obj, 'player_profile', None)
+        if p:
+            color = '#10b981' if p.is_approved else '#f59e0b'
+            text = 'Виден на сайте' if p.is_approved else 'Скрыт (модерация)'
+            return format_html(
+                '<span style="background:{};color:#fff;padding:3px 10px;'
+                'border-radius:4px;font-size:11px;font-weight:bold">{}</span>',
+                color, text
+            )
+        return mark_safe('<span style="color:#999">Нет карточки</span>')
+    card_status_col.short_description = 'Статус карточки'
+
 
 
 
