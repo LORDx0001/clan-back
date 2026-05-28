@@ -73,6 +73,12 @@ class Command(BaseCommand):
 
     def send(self, chat_id, text, buttons=None):
         """Отправить сообщение с опциональной reply-keyboard."""
+        # Выводим первую строку сообщения для чистоты логов
+        short_text = text.replace('\n', ' ').strip()
+        if len(short_text) > 60:
+            short_text = short_text[:57] + "..."
+        self.stdout.write(self.style.WARNING(f"   📤 БОТ -> ЧАТ {chat_id}: \"{short_text}\""))
+
         payload = {
             "chat_id": chat_id,
             "text": text,
@@ -83,7 +89,10 @@ class Command(BaseCommand):
             payload["reply_markup"] = json.dumps(kb)
         else:
             payload["reply_markup"] = json.dumps({"remove_keyboard": True})
-        self.api("sendMessage", payload)
+        
+        res = self.api("sendMessage", payload)
+        if not res.get("ok"):
+            self.stdout.write(self.style.ERROR(f"   ❌ Ошибка отправки в Telegram: {res.get('description')}"))
 
     def cancel_kb(self):
         return [[{"text": "❌ Отмена"}]]
@@ -120,22 +129,33 @@ class Command(BaseCommand):
         msg      = update["message"]
         chat_id  = str(msg["chat"]["id"])
         text     = (msg.get("text") or "").strip()
-        name     = msg.get("from", {}).get("first_name", "Пользователь")
+        from_user = msg.get("from", {})
+        name     = from_user.get("first_name", "Пользователь")
+        username = from_user.get("username", "нет")
 
         # Init state
         if chat_id not in self.user_states:
             self.user_states[chat_id] = {"state": STATE_NONE, "data": {}}
 
+        state = self.user_states[chat_id]["state"]
+
+        # Логируем входящее сообщение
+        self.stdout.write(self.style.SUCCESS(
+            f"\n📥 ВХОДЯЩЕЕ: от {name} (ID: {chat_id}, @{username}) | Текст: \"{text}\" | Состояние: {state}"
+        ))
+
         # Global cancel
         if text in ["❌ Отмена", "/cancel", "отмена", "/menu", "меню"]:
+            self.stdout.write(f"   ⚙️ Пользователь {chat_id} запросил отмену.")
             self.user_states[chat_id] = {"state": STATE_NONE, "data": {}}
             self.main_menu(chat_id, "❌ Действие отменено.")
             return
 
-        state = self.user_states[chat_id]["state"]
         if state == STATE_NONE:
+            self.stdout.write(f"   ⚙️ Обрабатываем как команду меню.")
             self.on_menu(chat_id, text, name)
         else:
+            self.stdout.write(f"   ⚙️ Обрабатываем шаг анкеты/формы.")
             self.on_step(chat_id, text, state)
 
     # ── Menu handler ───────────────────────────────────────────────────────────
