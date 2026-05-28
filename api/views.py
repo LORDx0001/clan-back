@@ -6,6 +6,9 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 from django.utils import timezone
+
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.models import User
 from .models import ClanConfig, Player, PlayerRole, HeroBackgroundSlide, Announcement, GalleryItem, ScheduleEvent, ClanRule, RecruitmentSubmission
 
 def get_absolute_media_url(request, path_or_url):
@@ -386,3 +389,102 @@ def roles_list_api(request):
     roles = PlayerRole.objects.all()
     data = [{"id": r.id, "name": r.name} for r in roles]
     return JsonResponse(data, safe=False, json_dumps_params={'ensure_ascii': False})
+
+
+@csrf_exempt
+@require_POST
+def login_api(request):
+    try:
+        data = json.loads(request.body)
+        username = data.get('username')
+        password = data.get('password')
+        
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            if not user.is_active:
+                return JsonResponse({"error": "Аккаунт еще не подтвержден администратором"}, status=403)
+            login(request, user)
+            return JsonResponse({"success": True, "username": user.username})
+        else:
+            return JsonResponse({"error": "Неверный логин или пароль"}, status=401)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+@csrf_exempt
+@require_POST
+def logout_api(request):
+    logout(request)
+    return JsonResponse({"success": True})
+
+@require_GET
+def me_api(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Not authenticated"}, status=401)
+        
+    try:
+        p = getattr(request.user, 'player_profile', None)
+        if p:
+            avatar_url = get_absolute_media_url(request, p.get_avatar_url())
+            profile_url = get_absolute_media_url(request, p.get_profile_url())
+            achievements_list = [line.strip() for line in p.achievements.split('\n') if line.strip()]
+            
+            player_dict = {
+                "id": str(p.id),
+                "nickname": p.nickname,
+                "uid": p.uid,
+                "role": p.role.name if p.role else "",
+                "clanRole": p.clan_role,
+                "device": p.device,
+                "level": p.level,
+                "kd": p.kd,
+                "signatureWeapon": p.signature_weapon,
+                "avatar": avatar_url,
+                "profileMedia": profile_url,
+                "achievements": p.achievements,  # raw text for editing
+                "region": p.region,
+                "description": p.description,
+            }
+            return JsonResponse({"user": request.user.username, "player": player_dict})
+        else:
+            return JsonResponse({"user": request.user.username, "player": None})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+@csrf_exempt
+@require_POST
+def update_profile_api(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Not authenticated"}, status=401)
+        
+    try:
+        data = json.loads(request.body)
+        p = getattr(request.user, 'player_profile', None)
+        if not p:
+            # Create if not exists? But normally it's created or linked by admin.
+            # If user has no player, let's create it.
+            p = Player.objects.create(
+                user=request.user,
+                nickname=data.get('nickname', request.user.username),
+                is_approved=True
+            )
+            
+        p.nickname = data.get('nickname', p.nickname)
+        p.uid = data.get('uid', p.uid)
+        p.device = data.get('device', p.device)
+        p.level = data.get('level', p.level)
+        p.kd = data.get('kd', p.kd)
+        p.signature_weapon = data.get('signatureWeapon', p.signature_weapon)
+        p.achievements = data.get('achievements', p.achievements)
+        p.region = data.get('region', p.region)
+        p.description = data.get('description', p.description)
+        
+        # We don't update role here, it's usually FK, but let's allow it via string if needed, or skip.
+        role_name = data.get('role')
+        if role_name:
+            role_obj, _ = PlayerRole.objects.get_or_create(name=role_name)
+            p.role = role_obj
+            
+        p.save()
+        return JsonResponse({"success": True})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
