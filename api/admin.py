@@ -196,6 +196,10 @@ class BotUserAdminForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Rename the is_active label to be explicitly clear
+        self.fields['is_active'].label = "✅ РАЗРЕШИТЬ ВХОД (АККАУНТ ПОДТВЕРЖДЕН)"
+        self.fields['is_active'].help_text = "Поставьте галочку, чтобы пользователь смог войти на сайт."
+        
         if self.instance and self.instance.pk:
             p = getattr(self.instance, 'player_profile', None)
             # Разрешаем выбрать свободные карточки + текущую
