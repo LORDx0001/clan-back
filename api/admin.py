@@ -8,40 +8,108 @@ from .models import ClanConfig, Player, PlayerRole, HeroBackgroundSlide, Announc
 # Unregister standard User model to register our customized one
 admin.site.unregister(User)
 
-class PlayerInline(admin.StackedInline):
+class PlayerLinkInline(admin.StackedInline):
+    """
+    Inline для привязки/создания карточки игрока прямо на странице пользователя.
+    Суперадмин видит все поля. Обычный пользователь — только свои данные.
+    """
     model = Player
     can_delete = False
     verbose_name = "Карточка игрока"
-    verbose_name_plural = "Связанная карточка игрока (Профиль)"
+    verbose_name_plural = "🎮 Карточка игрока (Профиль на сайте)"
     fk_name = 'user'
     extra = 0
-    fieldsets = (
-        ('Связь с сайтом и Telegram', {
-            'fields': ('is_approved', 'telegram_id', 'order')
-        }),
-        ('Игровые данные профиля', {
-            'fields': ('nickname', 'uid', 'clan_role', 'role', 'level', 'kd', 'signature_weapon', 'device', 'region', 'joined_date')
-        }),
-        ('Медиафайлы профиля', {
-            'fields': ('avatar_file', 'profile_file')
-        }),
-        ('Сведения и Достижения', {
-            'fields': ('achievements', 'description')
-        }),
-    )
+
+    # Поля, которые может редактировать сам пользователь
+    USER_EDITABLE_FIELDS = ('nickname', 'uid', 'device', 'level', 'kd',
+                            'signature_weapon', 'region', 'achievements',
+                            'description', 'avatar_file')
+
+    def get_fieldsets(self, request, obj=None):
+        if request.user.is_superuser:
+            return (
+                ('Связь с сайтом', {
+                    'fields': ('is_approved', 'telegram_id', 'order', 'clan_role', 'role')
+                }),
+                ('Игровые данные', {
+                    'fields': ('nickname', 'uid', 'device', 'level', 'kd',
+                               'signature_weapon', 'region', 'joined_date')
+                }),
+                ('Медиафайлы', {
+                    'fields': ('avatar_file', 'profile_file')
+                }),
+                ('Достижения и описание', {
+                    'fields': ('achievements', 'description')
+                }),
+            )
+        # Обычный пользователь видит только свои редактируемые данные
+        return (
+            ('Мои игровые данные', {
+                'fields': self.USER_EDITABLE_FIELDS
+            }),
+        )
+
+    def get_readonly_fields(self, request, obj=None):
+        if request.user.is_superuser:
+            return ()
+        # Обычный пользователь не может менять служебные поля
+        all_fields = [f.name for f in Player._meta.get_fields()
+                      if hasattr(f, 'column')]
+        readonly = [f for f in all_fields if f not in self.USER_EDITABLE_FIELDS]
+        return readonly
+
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    inlines = (PlayerInline,)
-    list_display = ('username', 'is_active_badge', 'telegram_id_badge', 'player_approved_badge', 'date_joined')
-    list_select_related = ('player_profile',)
+    inlines = (PlayerLinkInline,)
     ordering = ('-date_joined',)
 
+    # ── Суперадмин — полный список пользователей ──────────────────────────────
+    list_display = ('username', 'is_active_badge', 'telegram_id_badge',
+                    'player_card_badge', 'player_approved_badge', 'date_joined')
+    list_select_related = ('player_profile',)
+    list_filter = ('is_active', 'is_staff', 'date_joined')
+    search_fields = ('username', 'player_profile__telegram_id',
+                     'player_profile__nickname')
+
+    # ── Ограничения для обычных пользователей ─────────────────────────────────
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+        # Обычный пользователь видит только себя
+        return qs.filter(pk=request.user.pk)
+
+    def has_add_permission(self, request):
+        # Добавлять пользователей может только суперадмин
+        return request.user.is_superuser
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def get_fieldsets(self, request, obj=None):
+        if request.user.is_superuser:
+            # Стандартные fieldsets Django для суперадмина
+            return super().get_fieldsets(request, obj)
+        # Обычный пользователь видит только смену пароля
+        return (
+            ('Мой аккаунт', {'fields': ('username',)}),
+        )
+
+    def get_readonly_fields(self, request, obj=None):
+        if request.user.is_superuser:
+            return ()
+        # Обычный пользователь не может менять логин и системные поля
+        return ('username', 'is_active', 'is_staff', 'is_superuser',
+                'groups', 'user_permissions', 'date_joined', 'last_login')
+
+    # ── Колонки списка пользователей ──────────────────────────────────────────
     def is_active_badge(self, obj):
         color = '#10b981' if obj.is_active else '#ef4444'
-        text = 'Разрешен' if obj.is_active else 'Заблокирован'
+        text = '✅ Активен' if obj.is_active else '🚫 Заблокирован'
         return format_html(
-            '<span style="background-color: {}; color: #fff; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; text-transform: uppercase;">{}</span>',
+            '<span style="background:{};color:#fff;padding:3px 10px;'
+            'border-radius:4px;font-size:11px;font-weight:bold">{}</span>',
             color, text
         )
     is_active_badge.short_description = 'Вход на сайт'
@@ -49,21 +117,38 @@ class UserAdmin(BaseUserAdmin):
     def telegram_id_badge(self, obj):
         p = getattr(obj, 'player_profile', None)
         if p and p.telegram_id:
-            return format_html('<code style="font-size: 12px; font-weight: bold;">{}</code>', p.telegram_id)
-        return "Не привязан к TG"
+            return format_html(
+                '<code style="font-size:12px;font-weight:bold">{}</code>',
+                p.telegram_id
+            )
+        return format_html('<span style="color:#999">Нет</span>')
     telegram_id_badge.short_description = 'Telegram ID'
+
+    def player_card_badge(self, obj):
+        p = getattr(obj, 'player_profile', None)
+        if p:
+            return format_html(
+                '<strong style="color:#6366f1">{}</strong>', p.nickname
+            )
+        return format_html(
+            '<span style="color:#f59e0b;font-weight:bold">⚠ Нет карточки</span>'
+        )
+    player_card_badge.short_description = 'Карточка игрока'
 
     def player_approved_badge(self, obj):
         p = getattr(obj, 'player_profile', None)
         if p:
             color = '#10b981' if p.is_approved else '#f59e0b'
-            text = 'Одобрена (Виден)' if p.is_approved else 'На модерации (Скрыт)'
+            text = 'Виден на сайте' if p.is_approved else 'Скрыт (модерация)'
             return format_html(
-                '<span style="background-color: {}; color: #fff; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; text-transform: uppercase;">{}</span>',
+                '<span style="background:{};color:#fff;padding:3px 10px;'
+                'border-radius:4px;font-size:11px;font-weight:bold">{}</span>',
                 color, text
             )
-        return "Нет карточки"
+        return format_html('<span style="color:#999">—</span>')
     player_approved_badge.short_description = 'Статус карточки'
+
+
 
 
 @admin.register(PlayerRole)
