@@ -488,3 +488,67 @@ def update_profile_api(request):
         return JsonResponse({"success": True})
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
+
+@csrf_exempt
+@require_POST
+def register_api(request):
+    try:
+        data = json.loads(request.body)
+        username = data.get('username', '').strip()
+        password = data.get('password', '')
+        telegram_contact = data.get('telegram', '').strip()
+        
+        if not username or not password:
+            return JsonResponse({"error": "Логин и пароль обязательны"}, status=400)
+            
+        if len(username) < 3 or not username.isalnum():
+            return JsonResponse({"error": "Логин должен содержать только буквы и цифры (мин. 3 символа)"}, status=400)
+            
+        if User.objects.filter(username=username).exists():
+            return JsonResponse({"error": "Этот логин уже занят"}, status=400)
+            
+        if len(password) < 6:
+            return JsonResponse({"error": "Пароль должен быть минимум 6 символов"}, status=400)
+
+        # Create user inactive
+        user = User.objects.create_user(
+            username=username,
+            password=password,
+            is_active=False
+        )
+        
+        # Create minimal player profile linked
+        player = Player.objects.create(
+            nickname=username,
+            is_approved=False,
+            user=user
+        )
+        
+        # Notify admin via Telegram
+        bot_token = os.environ.get('TELEGRAM_BOT_TOKEN')
+        chat_id = os.environ.get('TELEGRAM_CHAT_ID')
+        if bot_token and chat_id:
+            msg = (
+                f"🔔 *Новая регистрация на сайте!*\n\n"
+                f"👤 *Логин:* `{username}`\n"
+                f"💬 *Контакт (TG):* {telegram_contact if telegram_contact else 'Не указан'}\n\n"
+                f"Перейдите в админ-панель для активации:\n"
+                f"👉 [Активировать пользователя](https://music.lordx.uz/admin/auth/user/{user.id}/change/)"
+            )
+            
+            def send_tg():
+                try:
+                    requests.post(
+                        f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                        data={"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"},
+                        timeout=10
+                    )
+                except Exception as e:
+                    pass
+            
+            threading.Thread(target=send_tg, daemon=True).start()
+            
+        return JsonResponse({"success": True})
+        
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
