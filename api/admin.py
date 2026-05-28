@@ -1,7 +1,70 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib.auth.models import User
 from .models import ClanConfig, Player, PlayerRole, HeroBackgroundSlide, Announcement, GalleryItem, ScheduleEvent, ClanRule, RecruitmentSubmission, PlayerMedia
+
+# Unregister standard User model to register our customized one
+admin.site.unregister(User)
+
+class PlayerInline(admin.StackedInline):
+    model = Player
+    can_delete = False
+    verbose_name = "Карточка игрока"
+    verbose_name_plural = "Связанная карточка игрока (Профиль)"
+    fk_name = 'user'
+    extra = 0
+    fieldsets = (
+        ('Связь с сайтом и Telegram', {
+            'fields': ('is_approved', 'telegram_id', 'order')
+        }),
+        ('Игровые данные профиля', {
+            'fields': ('nickname', 'uid', 'clan_role', 'role', 'level', 'kd', 'signature_weapon', 'device', 'region', 'joined_date')
+        }),
+        ('Медиафайлы профиля', {
+            'fields': ('avatar_file', 'profile_file')
+        }),
+        ('Сведения и Достижения', {
+            'fields': ('achievements', 'description')
+        }),
+    )
+
+@admin.register(User)
+class UserAdmin(BaseUserAdmin):
+    inlines = (PlayerInline,)
+    list_display = ('username', 'is_active_badge', 'telegram_id_badge', 'player_approved_badge', 'date_joined')
+    list_select_related = ('player_profile',)
+    ordering = ('-date_joined',)
+
+    def is_active_badge(self, obj):
+        color = '#10b981' if obj.is_active else '#ef4444'
+        text = 'Разрешен' if obj.is_active else 'Заблокирован'
+        return format_html(
+            '<span style="background-color: {}; color: #fff; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; text-transform: uppercase;">{}</span>',
+            color, text
+        )
+    is_active_badge.short_description = 'Вход на сайт'
+
+    def telegram_id_badge(self, obj):
+        p = getattr(obj, 'player_profile', None)
+        if p and p.telegram_id:
+            return format_html('<code style="font-size: 12px; font-weight: bold;">{}</code>', p.telegram_id)
+        return "Не привязан к TG"
+    telegram_id_badge.short_description = 'Telegram ID'
+
+    def player_approved_badge(self, obj):
+        p = getattr(obj, 'player_profile', None)
+        if p:
+            color = '#10b981' if p.is_approved else '#f59e0b'
+            text = 'Одобрена (Виден)' if p.is_approved else 'На модерации (Скрыт)'
+            return format_html(
+                '<span style="background-color: {}; color: #fff; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; text-transform: uppercase;">{}</span>',
+                color, text
+            )
+        return "Нет карточки"
+    player_approved_badge.short_description = 'Статус карточки'
+
 
 @admin.register(PlayerRole)
 class PlayerRoleAdmin(admin.ModelAdmin):
