@@ -191,10 +191,11 @@ class BotUserAdmin(admin.ModelAdmin):
     list_select_related = ('player_profile',)
 
     def get_queryset(self, request):
-        # Показываем только тех, у кого есть связанный Player с telegram_id (зарегистрированы через бота)
-        return super().get_queryset(request).filter(
-            player_profile__telegram_id__isnull=False
-        ).exclude(player_profile__telegram_id='')
+        # Показываем всех не-суперадминов, зарегистрированных через бот
+        return User.objects.filter(
+            is_staff=False,
+            is_superuser=False
+        )
 
     def has_add_permission(self, request):
         return False  # Добавляются только через бот
@@ -208,11 +209,11 @@ class BotUserAdmin(admin.ModelAdmin):
     # ── Колонки ────────────────────────────────────────────────────────────────
     def active_status(self, obj):
         if obj.is_active:
-            return format_html(
+            return mark_safe(
                 '<span style="background:#10b981;color:#fff;padding:3px 10px;'
                 'border-radius:4px;font-size:11px;font-weight:bold">✅ Активен</span>'
             )
-        return format_html(
+        return mark_safe(
             '<span style="background:#ef4444;color:#fff;padding:3px 10px;'
             'border-radius:4px;font-size:11px;font-weight:bold">🚫 Заблокирован</span>'
         )
