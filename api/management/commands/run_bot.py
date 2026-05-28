@@ -153,13 +153,13 @@ class Command(BaseCommand):
 
         if state == STATE_NONE:
             self.stdout.write(f"   ⚙️ Обрабатываем как команду меню.")
-            self.on_menu(chat_id, text, name)
+            self.on_menu(chat_id, text, name, username)
         else:
             self.stdout.write(f"   ⚙️ Обрабатываем шаг анкеты/формы.")
             self.on_step(chat_id, text, state)
 
     # ── Menu handler ───────────────────────────────────────────────────────────
-    def on_menu(self, chat_id, text, name):
+    def on_menu(self, chat_id, text, name, username):
         if text == "/start":
             self.main_menu(chat_id, f"👋 Привет, {name}!")
             return
@@ -174,7 +174,13 @@ class Command(BaseCommand):
                 self.main_menu(chat_id)
                 return
 
-            self.user_states[chat_id] = {"state": STATE_REG_USERNAME, "data": {}}
+            self.user_states[chat_id] = {
+                "state": STATE_REG_USERNAME,
+                "data": {
+                    "tg_name": name,
+                    "tg_username": username
+                }
+            }
             self.send(
                 chat_id,
                 "📝 *Регистрация — Шаг 1 из 3*\n\n"
@@ -292,14 +298,17 @@ class Command(BaseCommand):
 
                 # Уведомление в группу
                 if self.admin_chat_id:
+                    tg_user = data.get("tg_username", "нет")
+                    tg_user_str = f"@{tg_user}" if tg_user != "нет" else "нет юзернейма"
+                    
                     self.send(
                         self.admin_chat_id,
                         f"🔔 *Новая регистрация на сайте!*\n\n"
-                        f"👤 Имя в TG: `{chat_id}`\n"
-                        f"🔑 Логин: `{username}`\n\n"
-                        f"Перейдите в админ-панель, чтобы:\n"
-                        f"• Активировать аккаунт (поставить ✅ *Активный*)\n"
-                        f"• Привязать карточку игрока или дать разрешение на создание\n\n"
+                        f"🆔 *Telegram ID:* `{chat_id}`\n"
+                        f"👤 *Имя в TG:* {data.get('tg_name', 'Пользователь')}\n"
+                        f"💬 *Username в TG:* {tg_user_str}\n"
+                        f"🔑 *Придуманный Логин:* `{username}`\n\n"
+                        f"Перейдите в админ-панель для активации:\n"
                         f"👉 [Открыть пользователя в Admin](http://127.0.0.1:8000/admin/auth/user/{user.id}/change/)"
                     )
             except Exception as e:
